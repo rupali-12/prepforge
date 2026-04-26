@@ -1,28 +1,22 @@
 import nodemailer from 'nodemailer'
 
-// Create Gmail transporter
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-})
-
-// Verify transporter on startup
-transporter.verify((error) => {
-  if (error) {
-    console.error('Gmail connection failed:', error)
-  } else {
-    console.log('Gmail SMTP ready to send emails')
-  }
-})
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  })
+}
 
 export const sendVerificationEmail = async (
   email: string,
   name: string,
   otp: string
 ): Promise<void> => {
+  const transporter = createTransporter()
+
   const mailOptions = {
     from: `"PrepForge" <${process.env.FROM_EMAIL}>`,
     to: email,
@@ -63,6 +57,8 @@ export const sendPasswordResetEmail = async (
   name: string,
   otp: string
 ): Promise<void> => {
+  const transporter = createTransporter()
+
   const mailOptions = {
     from: `"PrepForge" <${process.env.FROM_EMAIL}>`,
     to: email,

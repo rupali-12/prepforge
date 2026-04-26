@@ -47,6 +47,18 @@ const router = createRouter({
       component: () => import('../views/DashboardView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+  path: '/problems',
+  name: 'problems',
+  component: () => import('../views/problems/ProblemListView.vue'),
+  meta: { requiresAuth: true },
+},
+{
+  path: '/problems/:slug',
+  name: 'problem-detail',
+  component: () => import('../views/problems/ProblemDetailView.vue'),
+  meta: { requiresAuth: true },
+},
     // 404
     {
       path: '/:pathMatch(.*)*',
@@ -72,7 +84,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   // Route is guest only — redirect to dashboard if already logged in
-  if (to.meta.guestOnly && authStore.isAuthenticated) {
+  if (to.meta.guestOnly && authStore.accessToken) {
     next({ name: 'dashboard' })
     return
   }

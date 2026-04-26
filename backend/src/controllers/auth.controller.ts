@@ -255,15 +255,19 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
   try {
     const { email } = req.body
 
+    console.log('Forgot password request for:', email)
+
     if (!email) {
       res.status(400).json({ success: false, message: 'Email is required' })
       return
     }
 
     const user = await User.findOne({ email: email.toLowerCase() })
+    console.log('User found:', user ? 'YES' : 'NO')
+    console.log('User verified:', user?.isEmailVerified)
 
-    // Always return success (don't reveal if email exists — security best practice)
-    if (!user || !user.isEmailVerified) {
+    if (!user) {
+      // Security: don't reveal if email exists
       res.status(200).json({
         success: true,
         message: 'If an account exists with this email, you will receive a reset OTP',
@@ -271,9 +275,25 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       return
     }
 
+    if (!user.isEmailVerified) {
+      console.log('User not verified — cannot reset password')
+      res.status(400).json({
+        success: false,
+        message: 'Please verify your email first before resetting password',
+      })
+      return
+    }
+
+    console.log('Generating OTP...')
     const otp = generateOTP()
+
+    console.log('Saving OTP to DB...')
     await saveOTP(email.toLowerCase(), otp, 'password_reset')
+
+    console.log('Sending reset email to:', email)
     await sendPasswordResetEmail(email, user.name, otp)
+
+    console.log('Reset email sent successfully!')
 
     res.status(200).json({
       success: true,
