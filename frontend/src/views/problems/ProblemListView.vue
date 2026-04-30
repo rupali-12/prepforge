@@ -12,6 +12,11 @@ watch(
   { deep: true },
 )
 
+const logout = () => {
+  authStore.logout()
+  router.push({ name: 'login' })
+}
+
 const difficultyColor = (d: string) =>
   ({
     easy: 'text-green-600 bg-green-50',
@@ -23,7 +28,7 @@ const difficultyColor = (d: string) =>
 <template>
   <div class="min-h-screen bg-gray-50">
     <!-- Navbar -->
-    <nav class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+    <!-- <nav class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
       <router-link to="/" class="text-xl font-bold text-blue-700">
         Prep<span class="text-gray-900">Forge</span>
       </router-link>
@@ -35,6 +40,30 @@ const difficultyColor = (d: string) =>
         <router-link to="/dashboard" class="text-sm text-gray-600 hover:text-gray-900"
           >Dashboard</router-link
         >
+      </div>
+    </nav> -->
+
+        <!-- Navbar — matches Problem Library -->
+    <nav class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <router-link to="/" class="text-xl font-bold text-blue-700">
+        Prep<span class="text-gray-900">Forge</span>
+      </router-link>
+      <div class="flex items-center gap-6">
+        <router-link to="/problems" class="text-sm text-gray-600 hover:text-gray-900 transition">
+          Problems
+        </router-link>
+        <router-link to="/interview/setup" class="text-sm font-medium text-blue-600">
+          Mock Interview
+        </router-link>
+        <router-link to="/dashboard" class="text-sm text-gray-600 hover:text-gray-900 transition">
+          Dashboard
+        </router-link>
+        <button
+          @click="logout"
+          class="text-sm text-gray-400 hover:text-red-500 transition"
+        >
+          Logout
+        </button>
       </div>
     </nav>
 

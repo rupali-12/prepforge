@@ -1,0 +1,255 @@
+// data/problems.ts
+
+const slugify = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, '-')
+
+export const problems = [
+  {
+    title: 'Two Sum',
+    slug: slugify('Two Sum'),
+    difficulty: 'easy',
+    description: `Given an array of integers \`nums\` and an integer \`target\`, return indices of the two numbers such that they add up to target.\n\nYou may assume that each input would have exactly one solution, and you may not use the same element twice.`,
+    examples: [
+      { input: 'nums = [2,7,11,15], target = 9', output: '[0,1]', explanation: 'nums[0] + nums[1] = 2 + 7 = 9' },
+      { input: 'nums = [3,2,4], target = 6', output: '[1,2]', explanation: 'nums[1] + nums[2] = 2 + 4 = 6' },
+    ],
+    constraints: ['2 <= nums.length <= 10^4', '-10^9 <= nums[i] <= 10^9', 'Only one valid answer exists'],
+    hints: [
+      { level: 1, content: 'Think about what information you need to find for each number.' },
+      { level: 2, content: 'A hash map lets you check if the complement exists in O(1) time.' },
+      { level: 3, content: 'For each num, check if (target - num) exists in your map. If not, store num in the map.' },
+    ],
+    solution: { code: '', explanation: 'Use a hash map to store seen numbers and their indices.', timeComplexity: 'O(n)', spaceComplexity: 'O(n)' },
+    tags: ['array', 'hash-map'],
+    companies: ['google', 'amazon', 'meta'],
+    testCases: [
+      { input: '2 7 11 15\n9', expected: '0 1', isHidden: false },
+      { input: '3 2 4\n6', expected: '1 2', isHidden: false },
+      { input: '3 3\n6', expected: '0 1', isHidden: true },
+    ],
+    acceptanceRate: 49,
+  },
+  {
+    title: 'Valid Parentheses',
+    slug: slugify('Valid Parentheses'),
+    difficulty: 'easy',
+    description: `Given a string \`s\` containing just the characters \`(\`, \`)\`, \`{\`, \`}\`, \`[\` and \`]\`, determine if the input string is valid.\n\nAn input string is valid if:\n- Open brackets must be closed by the same type of brackets.\n- Open brackets must be closed in the correct order.`,
+    examples: [
+      { input: 's = "()"', output: 'true' },
+      { input: 's = "()[]{}"', output: 'true' },
+      { input: 's = "(]"', output: 'false' },
+    ],
+    constraints: ['1 <= s.length <= 10^4', 's consists of parentheses only'],
+    hints: [
+      { level: 1, content: 'Think about what data structure is good for matching pairs.' },
+      { level: 2, content: 'A stack is perfect here. Push opening brackets and pop when you see a closing one.' },
+      { level: 3, content: 'For each char: if opening push it. If closing, check top of stack matches. If stack is empty at end, valid.' },
+    ],
+    solution: { code: '', explanation: 'Use a stack to track opening brackets.', timeComplexity: 'O(n)', spaceComplexity: 'O(n)' },
+    tags: ['stack', 'string'],
+    companies: ['amazon', 'microsoft', 'google'],
+   testCases: [
+  { input: '()', expected: 'true', isHidden: false },
+  { input: '()[]{', expected: 'false', isHidden: false },
+  { input: '{[]}', expected: 'true', isHidden: true },
+],
+    acceptanceRate: 40,
+  },
+  {
+    title: 'Reverse Linked List',
+    slug: slugify('Reverse Linked List'),
+    difficulty: 'easy',
+    description: `Given the head of a singly linked list, reverse the list, and return the reversed list.`,
+    examples: [
+      { input: 'head = [1,2,3,4,5]', output: '[5,4,3,2,1]' },
+      { input: 'head = [1,2]', output: '[2,1]' },
+    ],
+    constraints: ['The number of nodes in the list is in range [0, 5000]', '-5000 <= Node.val <= 5000'],
+    hints: [
+      { level: 1, content: 'Think about what pointers you need to keep track of.' },
+      { level: 2, content: 'You need a previous pointer, current pointer, and a way to save next before overwriting it.' },
+      { level: 3, content: 'Iterate: save next = curr.next, set curr.next = prev, move prev = curr, curr = next.' },
+    ],
+    solution: { code: '', explanation: 'Iterative approach with three pointers.', timeComplexity: 'O(n)', spaceComplexity: 'O(1)' },
+    tags: ['linked-list', 'recursion'],
+    companies: ['amazon', 'apple', 'microsoft'],
+    testCases: [
+      { input: '1 2 3 4 5', expected: '5 4 3 2 1', isHidden: false },
+      { input: '1 2', expected: '2 1', isHidden: false },
+    ],
+    acceptanceRate: 73,
+  },
+  {
+    title: 'Best Time to Buy and Sell Stock',
+    slug: slugify('Best Time to Buy and Sell Stock'),
+    difficulty: 'easy',
+    description: `You are given an array \`prices\` where \`prices[i]\` is the price of a given stock on the i-th day.\n\nYou want to maximize your profit by choosing a single day to buy one stock and choosing a different day in the future to sell that stock.\n\nReturn the maximum profit you can achieve. If you cannot achieve any profit, return 0.`,
+    examples: [
+      { input: 'prices = [7,1,5,3,6,4]', output: '5', explanation: 'Buy on day 2 (price=1) sell on day 5 (price=6), profit = 5.' },
+      { input: 'prices = [7,6,4,3,1]', output: '0', explanation: 'No profit possible.' },
+    ],
+    constraints: ['1 <= prices.length <= 10^5', '0 <= prices[i] <= 10^4'],
+    hints: [
+      { level: 1, content: 'You need to find the largest difference — what do you need to track as you scan?' },
+      { level: 2, content: 'Track the minimum price seen so far, and at each step compute profit if you sold today.' },
+      { level: 3, content: 'One pass: minPrice = min(minPrice, price), maxProfit = max(maxProfit, price - minPrice).' },
+    ],
+    solution: { code: '', explanation: 'Track minimum price and maximum profit in one pass.', timeComplexity: 'O(n)', spaceComplexity: 'O(1)' },
+    tags: ['array', 'dynamic-programming', 'greedy'],
+    companies: ['amazon', 'google', 'meta'],
+    testCases: [
+      { input: '7 1 5 3 6 4', expected: '5', isHidden: false },
+      { input: '7 6 4 3 1', expected: '0', isHidden: false },
+    ],
+    acceptanceRate: 54,
+  },
+  {
+    title: 'Maximum Subarray',
+    slug: slugify('Maximum Subarray'),
+    difficulty: 'medium',
+    description: `Given an integer array \`nums\`, find the subarray with the largest sum, and return its sum.`,
+    examples: [
+      { input: 'nums = [-2,1,-3,4,-1,2,1,-5,4]', output: '6', explanation: 'Subarray [4,-1,2,1] has the largest sum = 6.' },
+      { input: 'nums = [5,4,-1,7,8]', output: '23' },
+    ],
+    constraints: ['1 <= nums.length <= 10^5', '-10^4 <= nums[i] <= 10^4'],
+    hints: [
+      { level: 1, content: "Think about Kadane's algorithm. What decision do you make at each element?" },
+      { level: 2, content: 'At each position, decide: extend the current subarray or start fresh from this element.' },
+      { level: 3, content: 'currentSum = max(num, currentSum + num). maxSum = max(maxSum, currentSum).' },
+    ],
+    solution: { code: '', explanation: "Kadane's algorithm — O(n) DP.", timeComplexity: 'O(n)', spaceComplexity: 'O(1)' },
+    tags: ['array', 'dynamic-programming', 'divide-and-conquer'],
+    companies: ['google', 'microsoft', 'amazon'],
+    testCases: [
+      { input: '-2 1 -3 4 -1 2 1 -5 4', expected: '6', isHidden: false },
+      { input: '5 4 -1 7 8', expected: '23', isHidden: false },
+    ],
+    acceptanceRate: 50,
+  },
+  {
+    title: 'Climbing Stairs',
+    slug: slugify('Climbing Stairs'),
+    difficulty: 'easy',
+    description: `You are climbing a staircase. It takes \`n\` steps to reach the top.\n\nEach time you can either climb 1 or 2 steps. In how many distinct ways can you climb to the top?`,
+    examples: [
+      { input: 'n = 2', output: '2', explanation: '1+1 or 2.' },
+      { input: 'n = 3', output: '3', explanation: '1+1+1, 1+2, 2+1.' },
+    ],
+    constraints: ['1 <= n <= 45'],
+    hints: [
+      { level: 1, content: 'Think about what the last step looks like — you either came from n-1 or n-2.' },
+      { level: 2, content: 'This is a Fibonacci sequence in disguise. ways(n) = ways(n-1) + ways(n-2).' },
+      { level: 3, content: 'Use two variables to track previous two values, iterate from 2 to n.' },
+    ],
+    solution: { code: '', explanation: 'Fibonacci DP approach.', timeComplexity: 'O(n)', spaceComplexity: 'O(1)' },
+    tags: ['dynamic-programming', 'math', 'memoization'],
+    companies: ['amazon', 'apple', 'adobe'],
+    testCases: [
+      { input: '2', expected: '2', isHidden: false },
+      { input: '3', expected: '3', isHidden: false },
+      { input: '10', expected: '89', isHidden: true },
+    ],
+    acceptanceRate: 51,
+  },
+  {
+    title: 'Binary Search',
+    slug: slugify('Binary Search'),
+    difficulty: 'easy',
+    description: `Given an array of integers \`nums\` which is sorted in ascending order, and an integer \`target\`, write a function to search \`target\` in \`nums\`. If \`target\` exists, return its index. Otherwise, return -1.`,
+    examples: [
+      { input: 'nums = [-1,0,3,5,9,12], target = 9', output: '4' },
+      { input: 'nums = [-1,0,3,5,9,12], target = 2', output: '-1' },
+    ],
+    constraints: ['1 <= nums.length <= 10^4', 'All integers in nums are unique', 'nums is sorted in ascending order'],
+    hints: [
+      { level: 1, content: 'You should be able to do this in O(log n). Think about cutting the search space in half.' },
+      { level: 2, content: 'Use left and right pointers. Calculate mid each iteration.' },
+      { level: 3, content: 'If nums[mid] == target return mid. If target > nums[mid], left = mid+1 else right = mid-1.' },
+    ],
+    solution: { code: '', explanation: 'Classic binary search with left/right pointers.', timeComplexity: 'O(log n)', spaceComplexity: 'O(1)' },
+    tags: ['array', 'binary-search'],
+    companies: ['google', 'facebook', 'microsoft'],
+    testCases: [
+      { input: '-1 0 3 5 9 12\n9', expected: '4', isHidden: false },
+      { input: '-1 0 3 5 9 12\n2', expected: '-1', isHidden: false },
+    ],
+    acceptanceRate: 55,
+  },
+  {
+    title: 'Number of Islands',
+    slug: slugify('Number of Islands'),
+    difficulty: 'medium',
+    description: `Given an m x n 2D binary grid which represents a map of '1's (land) and '0's (water), return the number of islands.\n\nAn island is surrounded by water and is formed by connecting adjacent lands horizontally or vertically.`,
+    examples: [
+      { input: 'grid = [["1","1","1"],["0","1","0"],["1","1","1"]]', output: '1' },
+      { input: 'grid = [["1","1","0"],["1","1","0"],["0","0","1"]]', output: '2' },
+    ],
+    constraints: ['m == grid.length', 'n == grid[i].length', '1 <= m, n <= 300', 'grid[i][j] is 0 or 1'],
+    hints: [
+      { level: 1, content: 'Think about traversal — when you find land, you want to explore all connected land.' },
+      { level: 2, content: 'DFS or BFS works. When you find a 1, start DFS and mark all connected 1s as visited.' },
+      { level: 3, content: "Mark visited cells as 0 during DFS. Count how many times you start a DFS — that's the answer." },
+    ],
+    solution: { code: '', explanation: 'DFS/BFS flood fill approach.', timeComplexity: 'O(m×n)', spaceComplexity: 'O(m×n)' },
+    tags: ['graph', 'bfs', 'dfs', 'matrix'],
+    companies: ['amazon', 'google', 'microsoft'],
+    testCases: [
+      { input: '3 3\n1 1 0\n0 1 0\n0 0 0', expected: '1', isHidden: false },
+      { input: '3 3\n1 1 0\n1 1 0\n0 0 1', expected: '2', isHidden: false },
+    ],
+    acceptanceRate: 57,
+  },
+  {
+    title: 'Merge Two Sorted Lists',
+    slug: slugify('Merge Two Sorted Lists'),
+    difficulty: 'easy',
+    description: `You are given the heads of two sorted linked lists \`list1\` and \`list2\`.\n\nMerge the two lists into one sorted list. The list should be made by splicing together the nodes of the first two lists.\n\nReturn the head of the merged linked list.`,
+    examples: [
+      { input: 'list1 = [1,2,4], list2 = [1,3,4]', output: '[1,1,2,3,4,4]' },
+      { input: 'list1 = [], list2 = []', output: '[]' },
+    ],
+    constraints: ['The number of nodes in both lists is in the range [0, 50]', '-100 <= Node.val <= 100'],
+    hints: [
+      { level: 1, content: 'Think about building the merged list node by node, always picking the smaller head.' },
+      { level: 2, content: 'Use a dummy node as the start of your result list to simplify edge cases.' },
+      { level: 3, content: 'While both lists have nodes, compare heads and append the smaller. Then append whatever remains.' },
+    ],
+    solution: { code: '', explanation: 'Iterative merge with dummy head node.', timeComplexity: 'O(m+n)', spaceComplexity: 'O(1)' },
+    tags: ['linked-list', 'recursion'],
+    companies: ['amazon', 'microsoft', 'apple'],
+    testCases: [
+      { input: '1 2 4\n1 3 4', expected: '1 1 2 3 4 4', isHidden: false },
+      { input: '1 3 5\n2 4 6', expected: '1 2 3 4 5 6', isHidden: false },
+    ],
+    acceptanceRate: 62,
+  },
+  {
+    title: 'Longest Palindromic Substring',
+    slug: slugify('Longest Palindromic Substring'),
+    difficulty: 'medium',
+    description: `Given a string \`s\`, return the longest palindromic substring in \`s\`.`,
+    examples: [
+      { input: 's = "babad"', output: '"bab"', explanation: '"aba" is also a valid answer.' },
+      { input: 's = "cbbd"', output: '"bb"' },
+    ],
+    constraints: ['1 <= s.length <= 1000', 's consists of only digits and English letters'],
+    hints: [
+      { level: 1, content: 'Think about expanding from the center rather than checking every substring.' },
+      { level: 2, content: 'For each character (and each pair), try expanding outward while chars match.' },
+      { level: 3, content: 'Write an expand(left, right) helper. Call it for odd (center) and even (two centers) palindromes.' },
+    ],
+    solution: { code: '', explanation: 'Expand around center approach.', timeComplexity: 'O(n²)', spaceComplexity: 'O(1)' },
+    tags: ['string', 'dynamic-programming', 'two-pointers'],
+    companies: ['amazon', 'microsoft', 'google'],
+    testCases: [
+      { input: 'babad', expected: 'bab', isHidden: false },
+      { input: 'cbbd', expected: 'bb', isHidden: false },
+      { input: 'racecar', expected: 'racecar', isHidden: true },
+    ],
+    acceptanceRate: 33,
+  },
+]
