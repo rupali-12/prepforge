@@ -4,17 +4,22 @@ import { useRoute } from 'vue-router'
 import { VueMonacoEditor } from '@guolao/vue-monaco-editor'
 import { useProblemsStore } from '../../stores/problems.store'
 import { problemsService } from '../../services/problems.service'
-import type { TestResult } from '../../types/problem.types'
+import type { TestResult, AIReview, Submission } from '../../types/problem.types'
 
 const route = useRoute()
 const store = useProblemsStore()
 
 const language = ref('javascript')
 const isRunning = ref(false)
+const isSubmitting = ref(false)
 const testResults = ref<TestResult[]>([])
 const runError = ref('')
+const submitError = ref('')
 const currentHintLevel = ref(0)
+const aiHints = ref<string[]>([])
 const activeTab = ref<'description' | 'hints' | 'results'>('description')
+const submission = ref<Submission | null>(null)
+const showAIReview = ref(false)
 
 const languages = [
   { value: 'javascript', label: 'JavaScript' },
@@ -31,12 +36,11 @@ const languages = [
 
 const defaultCode: Record<string, string> = {
   javascript: `// JavaScript Solution
-// Input is available via stdin
 const lines = require('fs').readFileSync(0, 'utf8').trim().split('\\n');
 
 function solve() {
   // Write your solution here
-  
+
 }
 
 solve();`,
@@ -57,7 +61,7 @@ public class Main {
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
         // Write your solution here
-        
+
     }
 }`,
 
@@ -71,9 +75,9 @@ using namespace std;
 int main() {
     ios_base::sync_with_stdio(false);
     cin.tie(NULL);
-    
+
     // Write your solution here
-    
+
     return 0;
 }`,
 
@@ -83,7 +87,7 @@ int main() {
 
 int main() {
     // Write your solution here
-    
+
     return 0;
 }`,
 
@@ -92,7 +96,7 @@ const lines = require('fs').readFileSync(0, 'utf8').trim().split('\\n');
 
 function solve(): void {
     // Write your solution here
-    
+
 }
 
 solve();`,
@@ -109,7 +113,7 @@ var reader *bufio.Reader
 
 func main() {
     reader = bufio.NewReader(os.Stdin)
-    
+
     // Write your solution here
     fmt.Println()
 }`,
@@ -120,18 +124,18 @@ fn main() {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input).unwrap();
     let lines: Vec<&str> = input.trim().split('\\n').collect();
-    
+
     // Write your solution here
     println!("{}", "result");
 }`,
 
-kotlin: `import java.util.Scanner
+  kotlin: `import java.util.Scanner
 
 fun main() {
     val sc = Scanner(System.\`in\`)
-    
+
     // Write your solution here
-    
+
 }`,
 
   csharp: `using System;
@@ -143,14 +147,13 @@ class Solution {
         string? line;
         while ((line = Console.ReadLine()) != null)
             lines.Add(line);
-        
+
         // Write your solution here
-        
+
     }
 }`,
 }
 
-// Monaco language mapping
 const monacoLanguage = computed(() => {
   const map: Record<string, string> = {
     javascript: 'javascript',
@@ -167,10 +170,8 @@ const monacoLanguage = computed(() => {
   return map[language.value] || language.value
 })
 
-// Initialize code with default
 const code = ref(defaultCode['javascript'])
 
-// When language changes — update code to default for that language
 const onLanguageChange = (lang: string) => {
   language.value = lang
   code.value = defaultCode[lang] ?? `// Write your ${lang} solution here\n`
@@ -191,6 +192,7 @@ const difficultyColor = (d: string) => {
   return map[d] ?? ''
 }
 
+// ── Run Code ─────────────────────────────
 const runCode = async () => {
   if (!problem.value) return
 
@@ -220,22 +222,82 @@ const runCode = async () => {
   }
 }
 
+// ── Submit Code ───────────────────────────
+const submitCode = async () => {
+  if (!problem.value) return
+
+  if (!code.value?.trim()) {
+    submitError.value = 'Please write some code before submitting'
+    activeTab.value = 'results'
+    return
+  }
+
+  if (testResults.value.length === 0) {
+    submitError.value = 'Please run your code first before submitting'
+    activeTab.value = 'results'
+    return
+  }
+
+  isSubmitting.value = true
+  submitError.value = ''
+  showAIReview.value = false
+
+  try {
+    const response = await problemsService.submitCode({
+      code: code.value || '',
+      language: language.value,
+      problemId: problem.value._id,
+      testResults: testResults.value,
+      allPassed: allPassed.value,
+    })
+
+    submission.value = response.data.submission
+    showAIReview.value = true
+    activeTab.value = 'results'
+  } catch (err: unknown) {
+    const error = err as { response?: { data?: { message?: string } } }
+    submitError.value = error.response?.data?.message ?? 'Submission failed. Please try again.'
+    activeTab.value = 'results'
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+// ── Get AI Hint ───────────────────────────
+const isLoadingHint = ref(false)
+
 const getHint = async () => {
   if (!problem.value || currentHintLevel.value >= 3) return
   const nextLevel = currentHintLevel.value + 1
+
+  isLoadingHint.value = true
+  activeTab.value = 'hints'
+
   try {
-    await problemsService.getHint(problem.value._id, nextLevel)
+    const response = await problemsService.getHint(
+      problem.value._id,
+      nextLevel,
+      code.value || ''
+    )
+    aiHints.value.push(response.data.hint.content)
     currentHintLevel.value = nextLevel
-    activeTab.value = 'hints'
   } catch {
-    activeTab.value = 'hints'
+    // fallback to static hint from problem data
+    const staticHint = problem.value.hints?.find(h => h.level === nextLevel)
+    if (staticHint) {
+      aiHints.value.push(staticHint.content)
+      currentHintLevel.value = nextLevel
+    }
+  } finally {
+    isLoadingHint.value = false
   }
 }
 
 const passedCount = computed(() => testResults.value.filter((r) => r.passed).length)
-const allPassed = computed(() => testResults.value.length > 0 && passedCount.value === testResults.value.length)
+const allPassed = computed(
+  () => testResults.value.length > 0 && passedCount.value === testResults.value.length
+)
 
-// Editor options — exactly like LeetCode
 const editorOptions = {
   fontSize: 14,
   fontFamily: 'Fira Code, Cascadia Code, Consolas, monospace',
@@ -262,29 +324,40 @@ const editorOptions = {
 
 <template>
   <div class="h-screen flex flex-col overflow-hidden" style="background:#1e1e1e;">
-    <!-- Top navbar — dark like LeetCode -->
-    <nav class="flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0"
-      style="background:#1a1a1a; border-color:#333;">
+
+    <!-- ── Navbar ───────────────────────────────────────── -->
+    <nav
+      class="flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0"
+      style="background:#1a1a1a; border-color:#333;"
+    >
+      <!-- Left: back + title -->
       <div class="flex items-center gap-4">
-        <router-link to="/problems"
-          class="text-sm text-gray-400 hover:text-white transition flex items-center gap-1">
+        <router-link
+          to="/problems"
+          class="text-sm text-gray-400 hover:text-white transition"
+        >
           ← Problems
         </router-link>
         <div class="w-px h-4 bg-gray-700"></div>
-        <span v-if="problem" class="text-sm font-medium text-white">{{ problem.title }}</span>
-        <span v-if="problem"
-          :class="['text-xs font-medium px-2 py-0.5 rounded-full capitalize', difficultyColor(problem.difficulty)]">
+        <span v-if="problem" class="text-sm font-medium text-white">
+          {{ problem.title }}
+        </span>
+        <span
+          v-if="problem"
+          :class="['text-xs font-medium px-2 py-0.5 rounded-full capitalize border', difficultyColor(problem.difficulty)]"
+        >
           {{ problem.difficulty }}
         </span>
       </div>
 
-      <div class="flex items-center gap-3">
-        <!-- Language selector -->
+      <!-- Right: controls -->
+      <div class="flex items-center gap-2">
+        <!-- Language -->
         <select
           :value="language"
           @change="onLanguageChange(($event.target as HTMLSelectElement).value)"
-          class="text-sm rounded px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 text-white"
-          style="background:#2d2d2d; border: 1px solid #444;"
+          class="text-sm rounded px-3 py-1.5 text-white focus:outline-none"
+          style="background:#2d2d2d; border:1px solid #444;"
         >
           <option
             v-for="lang in languages"
@@ -296,39 +369,54 @@ const editorOptions = {
           </option>
         </select>
 
-        <!-- Hint button -->
+        <!-- Hint -->
         <button
           @click="getHint"
-          :disabled="currentHintLevel >= 3"
-          class="text-sm px-3 py-1.5 rounded transition disabled:opacity-40"
+          :disabled="currentHintLevel >= 3 || isLoadingHint"
+          class="text-sm px-3 py-1.5 rounded transition disabled:opacity-40 flex items-center gap-1.5"
           style="background:#2d2d2d; border:1px solid #ca8a04; color:#fbbf24;"
         >
-          💡 Hint {{ currentHintLevel }}/3
+          <span v-if="isLoadingHint" class="w-3 h-3 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin"></span>
+          <span v-else>💡</span>
+          {{ isLoadingHint ? 'Getting hint...' : `Hint ${currentHintLevel}/3` }}
         </button>
 
-        <!-- Run Code button — green like LeetCode -->
+        <!-- Run -->
         <button
           @click="runCode"
           :disabled="isRunning"
-          class="text-sm font-semibold px-5 py-1.5 rounded transition flex items-center gap-2 disabled:opacity-60"
+          class="text-sm font-semibold px-4 py-1.5 rounded transition flex items-center gap-2 disabled:opacity-60"
           style="background:#1a7f4b; color:white;"
         >
-          <svg v-if="!isRunning" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+          <span v-if="isRunning" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+          <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 5v14l11-7z"/>
           </svg>
-          <span v-if="isRunning" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
           {{ isRunning ? 'Running...' : 'Run Code' }}
+        </button>
+
+        <!-- Submit -->
+        <button
+          @click="submitCode"
+          :disabled="isSubmitting"
+          class="text-sm font-semibold px-4 py-1.5 rounded transition flex items-center gap-2 disabled:opacity-60"
+          style="background:#0ea5e9; color:white;"
+        >
+          <span v-if="isSubmitting" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+          <span v-else>↑</span>
+          {{ isSubmitting ? 'Submitting...' : 'Submit' }}
         </button>
       </div>
     </nav>
 
-    <!-- Main split layout -->
+    <!-- ── Main Layout ────────────────────────────────────── -->
     <div class="flex flex-1 overflow-hidden">
 
-      <!-- LEFT PANEL: Problem description -->
-      <div class="flex flex-col border-r overflow-hidden"
-        style="width:42%; background:#ffffff; border-color:#e5e7eb;">
-
+      <!-- LEFT PANEL -->
+      <div
+        class="flex flex-col border-r overflow-hidden"
+        style="width:42%; background:#ffffff; border-color:#e5e7eb;"
+      >
         <!-- Tabs -->
         <div class="flex border-b flex-shrink-0" style="border-color:#e5e7eb;">
           <button
@@ -339,7 +427,7 @@ const editorOptions = {
               'px-4 py-3 text-sm font-medium capitalize transition border-b-2',
               activeTab === tab
                 ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700',
             ]"
           >
             {{ tab }}
@@ -353,10 +441,10 @@ const editorOptions = {
           </button>
         </div>
 
-        <!-- Tab content -->
+        <!-- Tab body -->
         <div class="flex-1 overflow-y-auto p-5">
 
-          <!-- Loading -->
+          <!-- Loading skeleton -->
           <div v-if="store.isLoading" class="animate-pulse space-y-4">
             <div class="h-6 bg-gray-200 rounded w-2/3"></div>
             <div class="h-4 bg-gray-100 rounded w-1/4"></div>
@@ -365,7 +453,7 @@ const editorOptions = {
             <div class="h-4 bg-gray-100 rounded w-3/4"></div>
           </div>
 
-          <!-- DESCRIPTION -->
+          <!-- ── DESCRIPTION ──────────────────── -->
           <div v-else-if="activeTab === 'description' && problem">
             <p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed mb-6">
               {{ problem.description }}
@@ -399,8 +487,11 @@ const editorOptions = {
             <div class="mb-6">
               <p class="text-sm font-semibold text-gray-900 mb-3">Constraints</p>
               <ul class="space-y-1.5">
-                <li v-for="c in problem.constraints" :key="c"
-                  class="flex items-start gap-2 text-sm text-gray-600">
+                <li
+                  v-for="c in problem.constraints"
+                  :key="c"
+                  class="flex items-start gap-2 text-sm text-gray-600"
+                >
                   <span class="text-gray-400 mt-0.5 flex-shrink-0">•</span>
                   <code class="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{{ c }}</code>
                 </li>
@@ -408,109 +499,273 @@ const editorOptions = {
             </div>
 
             <div class="flex flex-wrap gap-1.5">
-              <span v-for="tag in problem.tags" :key="tag"
+              <span
+                v-for="tag in problem.tags"
+                :key="tag"
                 class="text-xs px-2.5 py-1 rounded-full border"
-                style="background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe;">
+                style="background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe;"
+              >
                 {{ tag }}
               </span>
             </div>
           </div>
 
-          <!-- HINTS -->
+          <!-- ── HINTS ────────────────────────── -->
           <div v-else-if="activeTab === 'hints'">
-            <div v-if="currentHintLevel === 0" class="text-center py-16">
+            <!-- No hints yet -->
+            <div v-if="currentHintLevel === 0 && !isLoadingHint" class="text-center py-16">
               <div class="text-5xl mb-4">💡</div>
-              <p class="text-gray-500 text-sm mb-6">
-                Stuck? Hints will guide you without giving away the answer.
-              </p>
-              <button @click="getHint"
-                class="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 text-sm font-medium px-6 py-2.5 rounded-lg transition">
+              <p class="text-gray-500 text-sm mb-2">Stuck? Get AI-powered hints.</p>
+              <p class="text-gray-400 text-xs mb-6">Hints guide your thinking without giving away the answer.</p>
+              <button
+                @click="getHint"
+                class="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 text-sm font-medium px-6 py-2.5 rounded-lg transition"
+              >
                 Reveal First Hint
               </button>
             </div>
 
+            <!-- Loading hint -->
+            <div v-else-if="isLoadingHint && aiHints.length === 0" class="text-center py-16">
+              <div class="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p class="text-sm text-gray-500">AI is generating your hint...</p>
+            </div>
+
+            <!-- Hints list -->
             <div v-else class="space-y-3">
-              <div v-for="level in currentHintLevel" :key="level"
+              <div
+                v-for="(hint, index) in aiHints"
+                :key="index"
                 class="rounded-lg p-4 border"
-                style="background:#fffbeb; border-color:#fde68a;">
-                <p class="text-xs font-semibold text-yellow-700 mb-2">Hint {{ level }} of 3</p>
-                <p class="text-sm text-gray-700 leading-relaxed">
-                  {{ problem?.hints?.find(h => h.level === level)?.content }}
-                </p>
+                style="background:#fffbeb; border-color:#fde68a;"
+              >
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="text-xs font-semibold text-yellow-700">
+                    Hint {{ index + 1 }} of 3
+                  </span>
+                  <span class="text-xs text-yellow-500 bg-yellow-100 px-1.5 py-0.5 rounded">
+                    AI Generated
+                  </span>
+                </div>
+                <p class="text-sm text-gray-700 leading-relaxed">{{ hint }}</p>
               </div>
 
-              <button v-if="currentHintLevel < 3" @click="getHint"
-                class="w-full py-2.5 rounded-lg text-sm transition border"
-                style="background:#fffbeb; border-color:#fde68a; color:#92400e;">
+              <!-- Loading next hint -->
+              <div v-if="isLoadingHint" class="rounded-lg p-4 border" style="background:#fffbeb; border-color:#fde68a;">
+                <div class="flex items-center gap-2">
+                  <div class="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span class="text-sm text-yellow-700">Generating hint {{ currentHintLevel + 1 }}...</span>
+                </div>
+              </div>
+
+              <!-- Reveal next -->
+              <button
+                v-if="currentHintLevel < 3 && !isLoadingHint"
+                @click="getHint"
+                class="w-full py-2.5 rounded-lg text-sm transition border font-medium"
+                style="background:#fffbeb; border-color:#fde68a; color:#92400e;"
+              >
                 Reveal Hint {{ currentHintLevel + 1 }}
               </button>
-              <p v-else class="text-center text-xs text-gray-400 py-2">
+
+              <p v-if="currentHintLevel >= 3 && !isLoadingHint" class="text-center text-xs text-gray-400 py-2">
                 All hints revealed — you've got this! 💪
               </p>
             </div>
           </div>
 
-          <!-- RESULTS -->
+          <!-- ── RESULTS ───────────────────────── -->
           <div v-else-if="activeTab === 'results'">
+
             <!-- Running spinner -->
             <div v-if="isRunning" class="text-center py-16">
-              <div class="w-10 h-10 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p class="text-sm text-gray-500">Executing your code...</p>
+              <div class="w-10 h-10 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p class="text-sm text-gray-500">Running your code...</p>
               <p class="text-xs text-gray-400 mt-1">This may take a few seconds</p>
             </div>
 
-            <!-- Error -->
-            <div v-else-if="runError"
+            <!-- Submitting spinner -->
+            <div v-else-if="isSubmitting" class="text-center py-16">
+              <div class="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p class="text-sm text-gray-500">Getting AI code review...</p>
+              <p class="text-xs text-gray-400 mt-1">Gemini is analyzing your solution</p>
+            </div>
+
+            <!-- Submit error -->
+            <div
+              v-else-if="submitError"
+              class="rounded-lg p-4 border text-sm mb-3"
+              style="background:#fef2f2; border-color:#fecaca; color:#991b1b;"
+            >
+              <p class="font-semibold mb-1">❌ {{ submitError }}</p>
+            </div>
+
+            <!-- Run error -->
+            <div
+              v-else-if="runError"
               class="rounded-lg p-4 border text-sm"
-              style="background:#fef2f2; border-color:#fecaca; color:#991b1b;">
+              style="background:#fef2f2; border-color:#fecaca; color:#991b1b;"
+            >
               <p class="font-semibold mb-1">❌ Execution Error</p>
               <p>{{ runError }}</p>
             </div>
 
-            <!-- Results -->
+            <!-- Test results -->
             <div v-else-if="testResults.length > 0" class="space-y-3">
-              <!-- Summary banner -->
-              <div :class="['rounded-lg p-4 border font-medium text-sm',
-                allPassed
-                  ? 'border-green-200 text-green-800'
-                  : 'border-red-200 text-red-800']"
-                :style="allPassed ? 'background:#f0fdf4' : 'background:#fef2f2'">
+
+              <!-- Summary -->
+              <div
+                :class="['rounded-lg p-4 border text-sm font-medium',
+                  allPassed ? 'border-green-200 text-green-800' : 'border-red-200 text-red-800']"
+                :style="allPassed ? 'background:#f0fdf4' : 'background:#fef2f2'"
+              >
                 <p class="text-base font-semibold">
-                  {{ allPassed ? '✅ Accepted' : '❌ Wrong Answer' }}
+                  {{ allPassed ? '✅ All Tests Passed' : '❌ Wrong Answer' }}
                 </p>
                 <p class="text-xs mt-1 font-normal opacity-80">
                   {{ passedCount }} / {{ testResults.length }} test cases passed
                 </p>
+                <p v-if="allPassed" class="text-xs mt-1 text-green-600">
+                  Click Submit to save your solution and get AI feedback
+                </p>
               </div>
 
-              <!-- Each test case -->
-              <div v-for="(result, i) in testResults" :key="i"
-                class="rounded-lg border overflow-hidden">
-                <!-- Test case header -->
-                <div :class="['flex items-center justify-between px-4 py-2.5 text-xs font-semibold',
-                  result.passed ? 'text-green-700' : 'text-red-700']"
-                  :style="result.passed ? 'background:#f0fdf4; border-bottom:1px solid #bbf7d0' : 'background:#fef2f2; border-bottom:1px solid #fecaca'">
-                  <span>{{ result.passed ? '✓ Test Case ' + (i + 1) + ' Passed' : '✗ Test Case ' + (i + 1) + ' Failed' }}</span>
+              <!-- Individual test cases -->
+              <div
+                v-for="(result, i) in testResults"
+                :key="i"
+                class="rounded-lg border overflow-hidden"
+              >
+                <div
+                  :class="['flex items-center justify-between px-4 py-2.5 text-xs font-semibold',
+                    result.passed ? 'text-green-700' : 'text-red-700']"
+                  :style="result.passed
+                    ? 'background:#f0fdf4; border-bottom:1px solid #bbf7d0'
+                    : 'background:#fef2f2; border-bottom:1px solid #fecaca'"
+                >
+                  <span>{{ result.passed ? '✓ Test ' + (i + 1) + ' Passed' : '✗ Test ' + (i + 1) + ' Failed' }}</span>
                   <span class="font-normal text-gray-400">{{ result.executionTime }}s</span>
                 </div>
-                <!-- Test case details -->
                 <div class="p-4 space-y-2 font-mono text-xs" style="background:#f9fafb;">
                   <div>
-                    <span class="text-gray-500 font-sans font-medium">Input</span>
-                    <div class="mt-1 bg-white rounded px-3 py-2 border border-gray-200 text-gray-700">{{ result.input }}</div>
+                    <span class="text-gray-500 font-sans font-medium text-xs">Input</span>
+                    <div class="mt-1 bg-white rounded px-3 py-2 border border-gray-200 text-gray-700">
+                      {{ result.input }}
+                    </div>
                   </div>
                   <div>
-                    <span class="text-gray-500 font-sans font-medium">Expected Output</span>
-                    <div class="mt-1 bg-white rounded px-3 py-2 border border-gray-200 text-gray-700">{{ result.expected }}</div>
+                    <span class="text-gray-500 font-sans font-medium text-xs">Expected</span>
+                    <div class="mt-1 bg-white rounded px-3 py-2 border border-gray-200 text-gray-700">
+                      {{ result.expected }}
+                    </div>
                   </div>
                   <div>
-                    <span class="font-sans font-medium" :class="result.passed ? 'text-green-600' : 'text-red-600'">
+                    <span
+                      class="font-sans font-medium text-xs"
+                      :class="result.passed ? 'text-green-600' : 'text-red-600'"
+                    >
                       Your Output
                     </span>
-                    <div class="mt-1 rounded px-3 py-2 border text-gray-700"
-                      :style="result.passed ? 'background:#f0fdf4; border-color:#bbf7d0' : 'background:#fef2f2; border-color:#fecaca'">
+                    <div
+                      class="mt-1 rounded px-3 py-2 border text-gray-700"
+                      :style="result.passed
+                        ? 'background:#f0fdf4; border-color:#bbf7d0'
+                        : 'background:#fef2f2; border-color:#fecaca'"
+                    >
                       {{ result.output }}
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ── AI Review Panel ───────────── -->
+              <div v-if="showAIReview && submission?.aiReview" class="rounded-xl border overflow-hidden mt-2">
+                <!-- Header -->
+                <div
+                  class="px-4 py-3 flex items-center justify-between"
+                  style="background:#1e1b4b; border-bottom:1px solid #312e81;"
+                >
+                  <div class="flex items-center gap-2">
+                    <span class="text-lg">🤖</span>
+                    <span class="text-sm font-semibold text-white">AI Code Review</span>
+                    <span class="text-xs text-indigo-300 bg-indigo-900 px-2 py-0.5 rounded-full">
+                      Gemini
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs text-indigo-300">Score</span>
+                    <span
+                      :class="['text-xl font-bold',
+                        submission.aiReview.score >= 80 ? 'text-green-400' :
+                        submission.aiReview.score >= 50 ? 'text-yellow-400' : 'text-red-400']"
+                    >
+                      {{ submission.aiReview.score }}
+                    </span>
+                    <span class="text-xs text-indigo-400">/100</span>
+                  </div>
+                </div>
+
+                <div class="p-4 space-y-4" style="background:#0f0e1a;">
+                  <!-- Complexity badges -->
+                  <div class="grid grid-cols-2 gap-3">
+                    <div class="rounded-lg px-3 py-3 text-center" style="background:#1e1b4b;">
+                      <p class="text-xs text-indigo-400 mb-1">Time Complexity</p>
+                      <p class="text-sm font-bold text-white font-mono">
+                        {{ submission.aiReview.timeComplexity }}
+                      </p>
+                    </div>
+                    <div class="rounded-lg px-3 py-3 text-center" style="background:#1e1b4b;">
+                      <p class="text-xs text-indigo-400 mb-1">Space Complexity</p>
+                      <p class="text-sm font-bold text-white font-mono">
+                        {{ submission.aiReview.spaceComplexity }}
+                      </p>
+                    </div>
+                  </div>
+
+                  <!-- Overall feedback -->
+                  <div class="rounded-lg p-3" style="background:#1e1b4b;">
+                    <p class="text-xs font-semibold text-indigo-300 mb-1.5">Overall Feedback</p>
+                    <p class="text-sm text-gray-300 leading-relaxed">
+                      {{ submission.aiReview.overallFeedback }}
+                    </p>
+                  </div>
+
+                  <!-- Strengths -->
+                  <div v-if="submission.aiReview.strengths?.length">
+                    <p class="text-xs font-semibold text-green-400 mb-2">✓ Strengths</p>
+                    <ul class="space-y-1.5">
+                      <li
+                        v-for="s in submission.aiReview.strengths"
+                        :key="s"
+                        class="flex items-start gap-2 text-sm text-gray-300"
+                      >
+                        <span class="text-green-400 flex-shrink-0 mt-0.5">•</span>
+                        {{ s }}
+                      </li>
+                    </ul>
+                  </div>
+
+                  <!-- Improvements -->
+                  <div v-if="submission.aiReview.improvements?.length">
+                    <p class="text-xs font-semibold text-yellow-400 mb-2">↑ Areas to Improve</p>
+                    <ul class="space-y-1.5">
+                      <li
+                        v-for="imp in submission.aiReview.improvements"
+                        :key="imp"
+                        class="flex items-start gap-2 text-sm text-gray-300"
+                      >
+                        <span class="text-yellow-400 flex-shrink-0 mt-0.5">•</span>
+                        {{ imp }}
+                      </li>
+                    </ul>
+                  </div>
+
+                  <!-- Optimized approach -->
+                  <div v-if="submission.aiReview.optimizedApproach" class="rounded-lg p-3" style="background:#1e1b4b;">
+                    <p class="text-xs font-semibold text-blue-400 mb-1.5">💡 Optimized Approach</p>
+                    <p class="text-sm text-gray-300 leading-relaxed">
+                      {{ submission.aiReview.optimizedApproach }}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -520,30 +775,32 @@ const editorOptions = {
             <div v-else class="text-center py-16">
               <div class="text-4xl mb-4">▶</div>
               <p class="text-sm text-gray-500">Click "Run Code" to test your solution</p>
-              <p class="text-xs text-gray-400 mt-1">Results will appear here</p>
+              <p class="text-xs text-gray-400 mt-1">Then "Submit" to get AI feedback</p>
             </div>
-          </div>
 
+          </div>
         </div>
       </div>
 
-      <!-- RIGHT PANEL: Monaco Editor — full dark like LeetCode -->
+      <!-- RIGHT PANEL: Monaco Editor -->
       <div class="flex-1 flex flex-col overflow-hidden" style="background:#1e1e1e;">
-        <!-- Editor toolbar -->
-        <div class="flex items-center justify-between px-4 py-2 flex-shrink-0"
-          style="background:#2d2d2d; border-bottom:1px solid #3d3d3d;">
+        <!-- Toolbar -->
+        <div
+          class="flex items-center justify-between px-4 py-2 flex-shrink-0"
+          style="background:#2d2d2d; border-bottom:1px solid #3d3d3d;"
+        >
           <span class="text-xs text-gray-400">
             {{ languages.find(l => l.value === language)?.label }} Solution
           </span>
           <button
             @click="code = defaultCode[language] ?? ''"
-            class="text-xs text-gray-500 hover:text-gray-300 transition"
+            class="text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1 rounded hover:bg-gray-700"
           >
-            Reset to template
+            Reset template
           </button>
         </div>
 
-        <!-- Monaco Editor -->
+        <!-- Editor -->
         <VueMonacoEditor
           v-model:value="code"
           :language="monacoLanguage"

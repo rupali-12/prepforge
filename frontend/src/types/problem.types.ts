@@ -33,3 +33,21 @@ export interface RunCodeResponse {
   passedCount: number
   totalCount: number
 }
+
+export interface AIReview {
+  score: number
+  timeComplexity: string
+  spaceComplexity: string
+  strengths: string[]
+  improvements: string[]
+  optimizedApproach: string
+  overallFeedback: string
+}
+
+export interface Submission {
+  id: string
+  status: 'accepted' | 'wrong_answer' | 'runtime_error' | 'pending'
+  aiReview: AIReview
+  language: string
+  createdAt: string
+}

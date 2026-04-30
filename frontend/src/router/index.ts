@@ -59,6 +59,24 @@ const router = createRouter({
   component: () => import('../views/problems/ProblemDetailView.vue'),
   meta: { requiresAuth: true },
 },
+{
+  path: '/interview/setup',
+  name: 'interview-setup',
+  component: () => import('../views/interview/InterviewSetupView.vue'),
+  meta: { requiresAuth: true },
+},
+{
+  path: '/interview/:sessionId',
+  name: 'interview',
+  component: () => import('../views/interview/InterviewView.vue'),
+  meta: { requiresAuth: true },
+},
+{
+  path: '/interview/:sessionId/result',
+  name: 'interview-result',
+  component: () => import('../views/interview/InterviewResultView.vue'),
+  meta: { requiresAuth: true },
+},
     // 404
     {
       path: '/:pathMatch(.*)*',
