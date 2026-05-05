@@ -48,5 +48,10 @@ async getMySubmissions() {
   const response = await api.get('/submissions/me')
   return response.data
 },
+
+async getSubmissionsByProblem(problemId: string) {
+  const response = await api.get(`/submissions/problem/${problemId}`)
+  return response.data
+},
 }
 

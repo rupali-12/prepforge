@@ -1,14 +1,28 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { VueMonacoEditor } from '@guolao/vue-monaco-editor'
 import { useProblemsStore } from '../../stores/problems.store'
 import { problemsService } from '../../services/problems.service'
-import type { TestResult, AIReview, Submission } from '../../types/problem.types'
+import type { TestResult, Submission } from '../../types/problem.types'
+
+interface ProblemSubmission {
+  _id: string
+  status: string
+  language: string
+  createdAt: string
+  executionTime: number
+  code: string
+  aiReview?: {
+    score: number
+    timeComplexity: string
+    spaceComplexity: string
+    overallFeedback: string
+  }
+}
 
 const route = useRoute()
 const store = useProblemsStore()
-
 const language = ref('javascript')
 const isRunning = ref(false)
 const isSubmitting = ref(false)
@@ -17,9 +31,12 @@ const runError = ref('')
 const submitError = ref('')
 const currentHintLevel = ref(0)
 const aiHints = ref<string[]>([])
-const activeTab = ref<'description' | 'hints' | 'results'>('description')
+const activeTab = ref<'description' | 'hints' | 'results' | 'submissions'>('description')
 const submission = ref<Submission | null>(null)
 const showAIReview = ref(false)
+const problemSubmissions = ref<ProblemSubmission[]>([])
+const selectedSubmission = ref<ProblemSubmission | null>(null)
+const showSubmissionCode = ref(false)
 
 const languages = [
   { value: 'javascript', label: 'JavaScript' },
@@ -181,7 +198,26 @@ const problem = computed(() => store.currentProblem)
 
 onMounted(async () => {
   await store.fetchProblemBySlug(route.params.slug as string)
+  // fetch after problem loads so we have the ID
+  store.currentProblem && fetchProblemSubmissions()
 })
+
+// Watch for problem loading then fetch submissions
+watch(() => store.currentProblem, async (newProblem) => {
+  if (newProblem) {
+    await fetchProblemSubmissions()
+  }
+})
+
+const fetchProblemSubmissions = async () => {
+  if (!store.currentProblem) return
+  try {
+    const response = await problemsService.getSubmissionsByProblem(store.currentProblem._id)
+    problemSubmissions.value = response.data.submissions
+  } catch {
+    // silently fail
+  }
+}
 
 const difficultyColor = (d: string) => {
   const map: Record<string, string> = {
@@ -406,10 +442,12 @@ const editorOptions = {
           <span v-else>↑</span>
           {{ isSubmitting ? 'Submitting...' : 'Submit' }}
         </button>
+
+        
       </div>
     </nav>
 
-    <!-- ── Main Layout ────────────────────────────────────── -->
+    <!-- ── Main Layout ───────────── -->
     <div class="flex flex-1 overflow-hidden">
 
       <!-- LEFT PANEL -->
@@ -418,28 +456,47 @@ const editorOptions = {
         style="width:42%; background:#ffffff; border-color:#e5e7eb;"
       >
         <!-- Tabs -->
-        <div class="flex border-b flex-shrink-0" style="border-color:#e5e7eb;">
-          <button
-            v-for="tab in ['description', 'hints', 'results']"
-            :key="tab"
-            @click="activeTab = tab as 'description' | 'hints' | 'results'"
-            :class="[
-              'px-4 py-3 text-sm font-medium capitalize transition border-b-2',
-              activeTab === tab
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700',
-            ]"
-          >
-            {{ tab }}
-            <span
-              v-if="tab === 'results' && testResults.length > 0"
-              :class="['ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium',
-                allPassed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700']"
-            >
-              {{ passedCount }}/{{ testResults.length }}
-            </span>
-          </button>
-        </div>
+       <div class="flex border-b flex-shrink-0" style="border-color:#e5e7eb;">
+  <button
+    v-for="tab in ['description', 'hints', 'results']"
+    :key="tab"
+    @click="activeTab = tab as 'description' | 'hints' | 'results'"
+    :class="[
+      'px-4 py-3 text-sm font-medium capitalize transition border-b-2',
+      activeTab === tab
+        ? 'border-blue-600 text-blue-600'
+        : 'border-transparent text-gray-500 hover:text-gray-700',
+    ]"
+  >
+    {{ tab }}
+    <span
+      v-if="tab === 'results' && testResults.length > 0"
+      :class="['ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium',
+        allPassed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700']"
+    >
+      {{ passedCount }}/{{ testResults.length }}
+    </span>
+  </button>
+
+  <!-- Submissions tab button -->
+  <button
+    @click="activeTab = 'submissions'"
+    :class="[
+      'px-4 py-3 text-sm font-medium transition border-b-2',
+      activeTab === 'submissions'
+        ? 'border-blue-600 text-blue-600'
+        : 'border-transparent text-gray-500 hover:text-gray-700',
+    ]"
+  >
+    Submissions
+    <span
+      v-if="problemSubmissions.length > 0"
+      class="ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600"
+    >
+      {{ problemSubmissions.length }}
+    </span>
+  </button>
+</div>
 
         <!-- Tab body -->
         <div class="flex-1 overflow-y-auto p-5">
@@ -779,6 +836,92 @@ const editorOptions = {
             </div>
 
           </div>
+
+          <!-- ── SUBMISSIONS TAB ──────────────────── -->
+<div v-else-if="activeTab === 'submissions'">
+  <!-- Empty state -->
+  <div v-if="problemSubmissions.length === 0" class="text-center py-16">
+    <div class="text-4xl mb-4">📋</div>
+    <p class="text-sm text-gray-500 mb-1">No submissions yet</p>
+    <p class="text-xs text-gray-400">Submit your solution to see history here</p>
+  </div>
+
+  <!-- Submissions list -->
+  <div v-else class="space-y-3">
+    <div
+      v-for="sub in problemSubmissions"
+      :key="sub._id"
+      class="rounded-lg border overflow-hidden"
+    >
+      <!-- Header row -->
+      <div
+        :class="['flex items-center justify-between px-4 py-3 cursor-pointer',
+          sub.status === 'accepted' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200']"
+        @click="selectedSubmission = selectedSubmission?._id === sub._id ? null : sub; showSubmissionCode = false"
+      >
+        <div class="flex items-center gap-3">
+          <span :class="['text-xs font-semibold', sub.status === 'accepted' ? 'text-green-700' : 'text-red-700']">
+            {{ sub.status === 'accepted' ? '✓ Accepted' : '✗ Wrong Answer' }}
+          </span>
+          <span class="text-xs text-gray-500 font-mono">{{ sub.language }}</span>
+          <span v-if="sub.aiReview?.score" class="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+            AI Score: {{ sub.aiReview.score }}/100
+          </span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-gray-400">
+            {{ new Date(sub.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) }}
+          </span>
+          <span class="text-xs text-gray-400">{{ selectedSubmission?._id === sub._id ? '▲' : '▼' }}</span>
+        </div>
+      </div>
+
+      <!-- Expanded detail -->
+      <div v-if="selectedSubmission?._id === sub._id" class="border-t" style="border-color:inherit;">
+
+        <!-- AI Review summary -->
+        <div v-if="sub.aiReview" class="px-4 py-3 space-y-2" style="background:#f8fafc;">
+          <div class="grid grid-cols-2 gap-2">
+            <div class="text-center bg-white rounded-lg py-2 border border-gray-200">
+              <p class="text-xs text-gray-400">Time</p>
+              <p class="text-sm font-bold text-gray-800 font-mono">{{ sub.aiReview.timeComplexity }}</p>
+            </div>
+            <div class="text-center bg-white rounded-lg py-2 border border-gray-200">
+              <p class="text-xs text-gray-400">Space</p>
+              <p class="text-sm font-bold text-gray-800 font-mono">{{ sub.aiReview.spaceComplexity }}</p>
+            </div>
+          </div>
+          <p class="text-xs text-gray-600 leading-relaxed bg-white rounded-lg px-3 py-2 border border-gray-200">
+            {{ sub.aiReview.overallFeedback }}
+          </p>
+        </div>
+
+        <!-- View code toggle -->
+        <div class="px-4 py-2 border-t border-gray-100 flex justify-between items-center" style="background:#f8fafc;">
+          <button
+            @click="showSubmissionCode = !showSubmissionCode"
+            class="text-xs text-blue-600 hover:underline"
+          >
+            {{ showSubmissionCode ? 'Hide Code' : 'View Code' }}
+          </button>
+          <button
+            @click="code = sub.code; language = sub.language; activeTab = 'description'"
+            class="text-xs text-green-600 hover:underline"
+          >
+            Load into Editor →
+          </button>
+        </div>
+
+        <!-- Code viewer -->
+        <pre
+          v-if="showSubmissionCode"
+          class="text-xs font-mono p-4 overflow-x-auto border-t border-gray-100"
+          style="background:#1e1e1e; color:#d4d4d4; max-height:200px;"
+        >{{ sub.code }}</pre>
+      </div>
+    </div>
+  </div>
+</div>
         </div>
       </div>
 

@@ -49,10 +49,10 @@ const difficultyColor = (d: string) =>
         Prep<span class="text-gray-900">Forge</span>
       </router-link>
       <div class="flex items-center gap-6">
-        <router-link to="/problems" class="text-sm text-gray-600 hover:text-gray-900 transition">
+        <router-link to="/problems" class="text-sm font-medium text-blue-600">
           Problems
         </router-link>
-        <router-link to="/interview/setup" class="text-sm font-medium text-blue-600">
+        <router-link to="/interview/setup" class="text-sm text-gray-600 hover:text-gray-900 transition">
           Mock Interview
         </router-link>
         <router-link to="/dashboard" class="text-sm text-gray-600 hover:text-gray-900 transition">
