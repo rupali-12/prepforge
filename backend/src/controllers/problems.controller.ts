@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import Problem from '../models/Problem.model'
 import { AuthRequest } from '../middlewares/auth.middleware'
+import { generateAIHint } from '../services/ai.service'
 
 // GET /api/problems
 export const getProblems = async (req: Request, res: Response): Promise<void> => {
@@ -80,23 +81,63 @@ export const getProblemBySlug = async (req: Request, res: Response): Promise<voi
 export const getHint = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params
-    const { level } = req.query
+    const { level, code } = req.query
 
     const hintLevel = parseInt(level as string) || 1
 
-    const problem = await Problem.findById(id).select('hints')
+    if (hintLevel < 1 || hintLevel > 3) {
+      res.status(400).json({ success: false, message: 'Hint level must be 1, 2, or 3' })
+      return
+    }
+
+    const problem = await Problem.findById(id).select('title description hints')
     if (!problem) {
       res.status(404).json({ success: false, message: 'Problem not found' })
       return
     }
 
-    const hint = problem.hints.find((h) => h.level === hintLevel)
-    if (!hint) {
-      res.status(404).json({ success: false, message: 'Hint not found' })
-      return
-    }
+    console.log(`Generating AI hint level ${hintLevel} for: ${problem.title}`)
 
-    res.status(200).json({ success: true, data: { hint } })
+    // Try AI hint first
+    try {
+      const aiHintContent = await generateAIHint(
+        problem.title,
+        problem.description,
+        (code as string) || '',
+        hintLevel
+      )
+
+      res.status(200).json({
+        success: true,
+        data: {
+          hint: {
+            level: hintLevel,
+            content: aiHintContent,
+            isAI: true,
+          },
+        },
+      })
+    } catch (aiError) {
+      // Fallback to static hints if AI fails
+      console.log('AI hint failed, falling back to static hint')
+      const staticHint = problem.hints.find((h) => h.level === hintLevel)
+
+      if (!staticHint) {
+        res.status(404).json({ success: false, message: 'Hint not found' })
+        return
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          hint: {
+            level: hintLevel,
+            content: staticHint.content,
+            isAI: false,
+          },
+        },
+      })
+    }
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error' })
   }

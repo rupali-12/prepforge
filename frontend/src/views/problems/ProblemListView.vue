@@ -6,25 +6,64 @@ const store = useProblemsStore()
 
 onMounted(() => store.fetchProblems())
 
-watch(() => store.filters, () => store.fetchProblems(1), { deep: true })
+watch(
+  () => store.filters,
+  () => store.fetchProblems(1),
+  { deep: true },
+)
 
-const difficultyColor = (d: string) => ({
-  easy: 'text-green-600 bg-green-50',
-  medium: 'text-yellow-600 bg-yellow-50',
-  hard: 'text-red-600 bg-red-50',
-}[d] || '')
+const logout = () => {
+  authStore.logout()
+  router.push({ name: 'login' })
+}
+
+const difficultyColor = (d: string) =>
+  ({
+    easy: 'text-green-600 bg-green-50',
+    medium: 'text-yellow-600 bg-yellow-50',
+    hard: 'text-red-600 bg-red-50',
+  })[d] || ''
 </script>
 
 <template>
   <div class="min-h-screen bg-gray-50">
     <!-- Navbar -->
+    <!-- <nav class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <router-link to="/" class="text-xl font-bold text-blue-700">
+        Prep<span class="text-gray-900">Forge</span>
+      </router-link>
+      <router-link to="/interview/setup" class="text-sm text-purple-400 hover:text-purple-300">
+        🎤 Interview
+      </router-link>
+      <div class="flex items-center gap-4">
+        <router-link to="/problems" class="text-sm font-medium text-blue-600">Problems</router-link>
+        <router-link to="/dashboard" class="text-sm text-gray-600 hover:text-gray-900"
+          >Dashboard</router-link
+        >
+      </div>
+    </nav> -->
+
+        <!-- Navbar — matches Problem Library -->
     <nav class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
       <router-link to="/" class="text-xl font-bold text-blue-700">
         Prep<span class="text-gray-900">Forge</span>
       </router-link>
-      <div class="flex items-center gap-4">
-        <router-link to="/problems" class="text-sm font-medium text-blue-600">Problems</router-link>
-        <router-link to="/dashboard" class="text-sm text-gray-600 hover:text-gray-900">Dashboard</router-link>
+      <div class="flex items-center gap-6">
+        <router-link to="/problems" class="text-sm font-medium text-blue-600">
+          Problems
+        </router-link>
+        <router-link to="/interview/setup" class="text-sm text-gray-600 hover:text-gray-900 transition">
+          Mock Interview
+        </router-link>
+        <router-link to="/dashboard" class="text-sm text-gray-600 hover:text-gray-900 transition">
+          Dashboard
+        </router-link>
+        <button
+          @click="logout"
+          class="text-sm text-gray-400 hover:text-red-500 transition"
+        >
+          Logout
+        </button>
       </div>
     </nav>
 
@@ -82,7 +121,11 @@ const difficultyColor = (d: string) => ({
 
       <!-- Loading -->
       <div v-if="store.isLoading" class="space-y-3">
-        <div v-for="i in 8" :key="i" class="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
+        <div
+          v-for="i in 8"
+          :key="i"
+          class="bg-white rounded-xl border border-gray-200 p-4 animate-pulse"
+        >
           <div class="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
           <div class="h-3 bg-gray-100 rounded w-1/4"></div>
         </div>
@@ -91,7 +134,9 @@ const difficultyColor = (d: string) => ({
       <!-- Problem List -->
       <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <!-- Header -->
-        <div class="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase">
+        <div
+          class="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase"
+        >
           <div class="col-span-1">#</div>
           <div class="col-span-5">Title</div>
           <div class="col-span-2">Difficulty</div>
@@ -112,10 +157,17 @@ const difficultyColor = (d: string) => ({
         >
           <div class="col-span-1 text-sm text-gray-400">{{ index + 1 }}</div>
           <div class="col-span-5">
-            <span class="text-sm font-medium text-gray-900 hover:text-blue-600">{{ problem.title }}</span>
+            <span class="text-sm font-medium text-gray-900 hover:text-blue-600">{{
+              problem.title
+            }}</span>
           </div>
           <div class="col-span-2">
-            <span :class="['text-xs font-medium px-2.5 py-1 rounded-full capitalize', difficultyColor(problem.difficulty)]">
+            <span
+              :class="[
+                'text-xs font-medium px-2.5 py-1 rounded-full capitalize',
+                difficultyColor(problem.difficulty),
+              ]"
+            >
               {{ problem.difficulty }}
             </span>
           </div>
@@ -138,7 +190,12 @@ const difficultyColor = (d: string) => ({
           v-for="page in store.pagination.totalPages"
           :key="page"
           @click="store.fetchProblems(page)"
-          :class="['px-3 py-1.5 text-sm rounded-lg border transition', page === store.pagination.page ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-600 hover:bg-gray-50']"
+          :class="[
+            'px-3 py-1.5 text-sm rounded-lg border transition',
+            page === store.pagination.page
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'border-gray-300 text-gray-600 hover:bg-gray-50',
+          ]"
         >
           {{ page }}
         </button>
