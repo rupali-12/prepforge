@@ -2,15 +2,10 @@
   "version": 2,
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "dist",
-  "functions": {
-    "dist/app.js": {
-      "runtime": "nodejs22.x"
-    }
-  },
-  "routes": [
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "dist/app.js"
+      "source": "/(.*)",
+      "destination": "/dist/app.js"
     }
   ]
 }
