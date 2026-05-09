@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useProblemsStore } from '../../stores/problems.store'
+import { useAuthStore } from '../../stores/auth.store'
 
 const store = useProblemsStore()
+const authStore = useAuthStore()
+const router = useRouter()
 
 onMounted(() => store.fetchProblems())
 
